@@ -1,1 +1,66 @@
-详见WEBP格式图片使用技术调研文档
+webp格式图片使用技术调研
+webp官网介绍：https://developers.google.com/speed/webp/
+
+资料(含Demo)：https://github.com/loveAndroidAndroid/GlideWebp
+
+webp兼容：
+
+android4.0（API level 4）之下：默认不支持
+android4.0（API level 14）- Android 4.3(API level 18)：只支持完全不透明的decode、encode的webp图
+Android 4.3(API level 18)之上：支持无损和透明的WebP图像
+webp限制：
+
+点9图(.9.png)格式的文件，不能转换为WebP图像
+
+webp制作：
+
+AS：选择图片-右击-选择convert to WebP开启制作
+软件：PS，智图等
+在线制作：https://cloudconvert.com/jpeg-to-webp
+压缩大小实际情况：（具体详见资料链接）
+
+按照默认压缩质量75%来算，某些情况还可以再压缩，按照实际效果来。
+
+图片30k -> 3.3k
+图片80k -> 37k
+图片120k -> 61.6k
+图片940k -> 67.6k
+影响APK包大小：（具体详见资料链接）
+
+因为项目本身支持Glide和Okhttp，所以加入fresco-webp支持后项目增大200k左右， 具体大小比较可看webp相关资料。
+
+使用流程：（更多详见Demo）
+
+1.加入依赖，demo使用最新版Glide和fresco支持
+
+//用于webp的支持
+
+implementation "com.facebook.fresco:animated-webp:1.13.0"
+implementation ("com.github.bumptech.glide:glide:4.9.0")
+implementation "com.github.bumptech.glide:okhttp3-integration:4.9.0"
+annotationProcessor 'com.github.bumptech.glide:compiler:4.9.0'
+implementation 'com.squareup.okhttp3:okhttp:3.10.0'
+2.创建AppGlideModule初始化webp support（加载webp静态加动态图）
+
+// webp support相关代码（具体详见AppGlideModule的registerComponents方法代码）
+
+ResourceDecoder decoder = new WebpResourceDecoder(context,glide); ResourceDecoder byteDecoder = new WebpBytebufferDecoder(context,glide);
+
+// use prepend() avoid intercept by default decoder
+
+registry.prepend(InputStream.class, Drawable.class, decoder) .prepend(ByteBuffer.class, Drawable.class, byteDecoder);
+3.使用
+
+正常Glide使用用法就ok
+
+Glide加载webp原理：
+
+Glide库本身是不支持加载webp格式的图片的。其原理在于借助fresco的web库来解析网络流，并且支持动态webp，引入implementation "com.facebook.fresco:animated-webp:1.13.0"库 , 并拷贝包里的包装类，作用是按glide提供的接口方式来实现网络流的解析，但最核心的解析层是使用fresco的web扩展库解析的。
+
+使用发现问题：（具体详见Demo）
+
+5.0以下https单向认证问题，现象导致图片加载不出来 解决思路： https://github.com/square/okhttp/issues/2372 https://blog.csdn.net/weixin_34085658/article/details/88490322 自定义OkhttpClient： 在AppGlideModule的registerComponents方法加入自定义的OkhttpClient registry.replace(GlideUrl.class, InputStream.class, new OkHttpUrlLoader.Factory(getHttpClient(context)));
+
+You cannot call Glide.get() in registerComponents()（Glide初始化两次问题，可跟进源码查看异常抛出代码） WebpResourceDecoder和WebpBytebufferDecoder代码直接传入Glide对象，不在初始化中使用Glide.get(context)代码两次初始化导致报错。具体详见Demo
+
+最新Grade5.1.1 com.android.tools.build:gradle:3.4.0 集成此套环境有问题，无法加载动图webp，暂不知问题解决方案,待后期考察。
